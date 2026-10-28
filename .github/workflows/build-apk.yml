@@ -88,8 +88,20 @@ jobs:
           npm ci
           npm run build
 
+      # v6: capture the build log so a future failure is diagnosable
+      # even though job logs need admin rights to download.
       - name: Build Android debug APK with Tauri
-        run: cargo tauri android build --debug
+        run: |
+          set -o pipefail
+          cargo tauri android build --debug 2>&1 | tee tauri-build.log
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-build-log
+          path: tauri-build.log
+          if-no-files-found: ignore
 
       - name: List built APKs
         run: find src-tauri/gen/android -name "*.apk" -print || true
