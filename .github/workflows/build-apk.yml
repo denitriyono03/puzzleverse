@@ -1,0 +1,83 @@
+name: Build PuzzleVerse APK (Android, debug)
+
+# NOTE: This workflow builds a DEBUG APK with Tauri Android.
+# It does NOT sign a release APK. Debug APKs are for testing only.
+# Requirement: the Tauri Android project must already exist at
+# src-tauri/gen/android/. Generate it once on a dev machine with
+# Rust + Android SDK installed by running:
+#   cargo tauri android init
+# then commit src-tauri/gen/android/ to this repo.
+# If that folder is missing, the build step will fail with a clear
+# error telling you to run the init command above.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: ${{ env.ANDROID_HOME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform, build-tools and NDK
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Check Tauri Android project exists
+        run: |
+          if [ ! -d "src-tauri/gen/android" ]; then
+            echo "::error::src-tauri/gen/android is missing. Run 'cargo tauri android init' on a dev machine, commit the generated folder, and re-run this workflow."
+            exit 1
+          fi
+          ls src-tauri/gen/android
+
+      - name: Install web dependencies and build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Android debug APK with Tauri
+        run: cargo tauri android build --debug
+
+      - name: List built APKs
+        run: find src-tauri/gen/android -name "*.apk" -print || true
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PuzzleVerse-debug-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
