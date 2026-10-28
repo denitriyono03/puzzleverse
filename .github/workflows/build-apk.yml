@@ -1,14 +1,10 @@
 name: Build PuzzleVerse APK (Android, debug)
 
-# NOTE: This workflow builds a DEBUG APK with Tauri Android.
-# It does NOT sign a release APK. Debug APKs are for testing only.
-# Requirement: the Tauri Android project must already exist at
-# src-tauri/gen/android/. Generate it once on a dev machine with
-# Rust + Android SDK installed by running:
-#   cargo tauri android init
-# then commit src-tauri/gen/android/ to this repo.
-# If that folder is missing, the build step will fail with a clear
-# error telling you to run the init command above.
+# DEBUG APK only, for testing, not a signed release APK.
+# v2: generates the Tauri Android project in CI, so you do NOT
+# need to commit src-tauri/gen/android/ beforehand.
+# If this run still fails, send the log of the step that failed
+# and the workflow will be adjusted from that exact error.
 
 on:
   push:
@@ -21,8 +17,6 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: ${{ env.ANDROID_HOME }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,11 +50,28 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
 
-      - name: Check Tauri Android project exists
+      - name: Generate placeholder icon if missing
+        run: |
+          if [ ! -f "src-tauri/icons/icon.png" ]; then
+            mkdir -p src-tauri/icons
+            python3 -m pip install --quiet pillow
+            python3 - <<'PY'
+            from PIL import Image, ImageDraw
+            img = Image.new('RGB', (512, 512), (99, 102, 241))
+            d = ImageDraw.Draw(img)
+            for x, y, c in [(40,40,(129,140,248)), (280,40,(167,139,250)), (40,280,(52,211,153)), (280,280,(251,191,36))]:
+                d.rounded_rectangle([x, y, x+190, y+190], radius=36, fill=c)
+            d.text((256, 256), "P", fill=(255,255,255), anchor="mm")
+            img.save('src-tauri/icons/icon.png')
+            print('icon generated')
+            PY
+          fi
+          ls -lh src-tauri/icons/icon.png
+
+      - name: Generate Tauri Android project if missing
         run: |
           if [ ! -d "src-tauri/gen/android" ]; then
-            echo "::error::src-tauri/gen/android is missing. Run 'cargo tauri android init' on a dev machine, commit the generated folder, and re-run this workflow."
-            exit 1
+            yes "" | cargo tauri android init
           fi
           ls src-tauri/gen/android
 
