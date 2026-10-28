@@ -103,12 +103,20 @@ jobs:
           path: tauri-build.log
           if-no-files-found: ignore
 
-      - name: List built APKs
-        run: find src-tauri/gen/android -name "*.apk" -print || true
+      # v8: Tauri Android puts the APK in a per-ABI subfolder
+      # (e.g. outputs/apk/arm64-v8a/debug/), not necessarily in
+      # outputs/apk/debug/, so the old glob found nothing and the
+      # upload failed even though the build itself succeeded.
+      # Collect every *.apk under gen/android into one folder first.
+      - name: Collect built APKs
+        run: |
+          mkdir -p apk-out
+          find src-tauri/gen/android -name "*.apk" -exec cp {} apk-out/ \;
+          ls -lh apk-out/
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: PuzzleVerse-debug-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/debug/*.apk
+          path: apk-out/*.apk
           if-no-files-found: error
