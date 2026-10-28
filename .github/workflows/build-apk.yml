@@ -27,11 +27,16 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+      # v3: do NOT download JDK via setup-java (that step was failing).
+      # GitHub-hosted ubuntu runners already ship JDK 17 preinstalled
+      # at $JAVA_HOME_17_X64, so just point JAVA_HOME at it.
+      - name: Use preinstalled JDK 17
+        run: |
+          echo "JAVA_HOME_17_X64=$JAVA_HOME_17_X64"
+          ls "$JAVA_HOME_17_X64/bin/java"
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          "$JAVA_HOME_17_X64/bin/java" -version
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
